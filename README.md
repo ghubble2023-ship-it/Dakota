@@ -1,4 +1,4 @@
-# Dakota# Dakota
+# Dakota
 
 **Project AI / Gravity Check**
 
