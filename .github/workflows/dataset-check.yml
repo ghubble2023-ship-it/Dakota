@@ -1,0 +1,77 @@
+name: Dataset Structure Check
+
+on:
+  push:
+    paths:
+      - 'data/**'
+      - 'samples/**'
+      - 'datasets/**'
+      - '.github/workflows/dataset-check.yml'
+  pull_request:
+    paths:
+      - 'data/**'
+      - 'samples/**'
+      - 'datasets/**'
+  workflow_dispatch:  # Allows manual trigger
+
+jobs:
+  validate-structure:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check for expected dataset folders
+        run: |
+          echo "Looking for dataset directories..."
+          
+          # These are the folders we expect once sampling begins
+          EXPECTED_DIRS=("data" "samples" "datasets" "real" "ai_generated" "labeled")
+          
+          found=0
+          for dir in "${EXPECTED_DIRS[@]}"; do
+            if [ -d "$dir" ]; then
+              echo "✓ Found: $dir"
+              found=1
+            fi
+          done
+          
+          if [ $found -eq 0 ]; then
+            echo "No dataset folders found yet (this is expected in early stages)."
+            echo "When you start uploading samples, place them under one of these folders:"
+            echo "  data/, samples/, datasets/, real/, ai_generated/, or labeled/"
+          fi
+
+      - name: Count image files (if any)
+        run: |
+          echo "Scanning for image files..."
+          count=$(find . -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" \) | wc -l)
+          echo "Total image files found: $count"
+          
+          if [ "$count" -gt 0 ]; then
+            echo "Image file list:"
+            find . -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" \) | head -20
+          fi
+
+      - name: Basic folder balance check (real vs AI)
+        run: |
+          echo "Checking for real vs AI-generated balance (if folders exist)..."
+          
+          real_count=0
+          ai_count=0
+          
+          if [ -d "real" ]; then
+            real_count=$(find real -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \) | wc -l)
+          fi
+          
+          if [ -d "ai_generated" ] || [ -d "ai" ] || [ -d "fake" ]; then
+            ai_count=$(find ai_generated ai fake -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \) 2>/dev/null | wc -l)
+          fi
+          
+          echo "Real images: $real_count"
+          echo "AI-generated images: $ai_count"
+          
+          if [ "$real_count" -gt 0 ] && [ "$ai_count" -gt 0 ]; then
+            echo "Both real and AI folders contain images."
+          fi
