@@ -1,0 +1,20 @@
+name: Dataset Check
+
+on:
+  push:
+    paths:
+      - 'samples/**'
+  workflow_dispatch:
+
+jobs:
+  check-samples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Count sample images
+        run: |
+          echo "Real samples:"
+          find samples/real -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" \) | wc -l
+          echo "AI-generated samples:"
+          find samples/ai_generated -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" \) | wc -l
