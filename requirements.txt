@@ -1,0 +1,5 @@
+# Dakota / Gravity Check
+# Currently minimal — will expand as modules are added
+
+# No external dependencies required for the first shadow module
+# Python standard library only (math, typing) 
