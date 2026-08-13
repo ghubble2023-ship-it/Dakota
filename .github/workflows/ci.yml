@@ -1,0 +1,36 @@
+name: Dakota CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  basic-checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check required files exist
+        run: |
+          echo "Checking core files..."
+          test -f README.md && echo "✓ README.md found" || (echo "✗ README.md missing" && exit 1)
+
+      - name: Validate Markdown (README)
+        uses: avto-dev/markdown-lint@v1
+        with:
+          config: |
+            {
+              "default": true,
+              "MD013": false,
+              "MD033": false
+            }
+          args: README.md
+
+      - name: Show repository structure
+        run: |
+          echo "Current repository structure:"
+          find . -type f -not -path './.git/*' | sort
