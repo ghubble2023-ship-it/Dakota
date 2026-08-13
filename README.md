@@ -1,55 +1,39 @@
-# Dakota
+# Dakota — Project AI / Gravity Check
 
-**Project AI / Gravity Check**
-
-Physics-based photo analysis system focused on detecting AI-generated and manipulated images through real optical and geometric inconsistencies.
-
----
+Physics-based visual inspection system for detecting AI-generated and manipulated images.
 
 ## Core Principle
 
-Every signal must be explainable through real-world physics or geometry.
-No black-box pattern matching.
-We prioritize what the human eye (specifically “the eye of Greg”) can verify.
+Every finding must be explainable through real optical or geometric behavior.
+No black-box pattern matching. No unexplained confidence scores.
 
----
+## Structure
+docs/
+gravity-check-checklist.md   ← Master inspection checklist
+src/
+gravity_check/
+shadow_direction.py        ← First detection module
+samples/
+real/                        ← Real photos for testing
+ai_generated/                ← AI-generated photos for testing
+## Current Status
 
-## Current Focus Areas
+- Spatial measurement is the required first step
+- Shadow direction consistency module is implemented
+- Checklist is locked and versioned
 
-### Gravity Check Engine
+## Gravity Check Order
 
-- Shadow consistency and light-source convergence
-- Reflection accuracy
-- Glasses / frame ghosting and layered light artifacts
-- Bleeding / edge inconsistencies
-- Overall lighting geometry
+1. Spatial Measurement (depth, camera distance, subject-to-background, light angle)
+2. Shadow Analysis
+3. Lighting Geometry
+4. Reflections
+5. Glasses & Frame Artifacts
+6. Edge & Bleeding Issues
+7. Overall Consistency
 
-### Working Rules
+## Next
 
-1. All findings must include a clear physical or geometric explanation.
-2. Prefer real optical behavior over statistical pattern matching.
-3. Keep the system lightweight and inspectable.
-4. Continuously tighten detection using labeled real vs AI-generated examples.
-
----
-
-## Project Status
-
-- Early structured phase
-- Clean repository start (August 2026)
-- Previous experimental work archived
-- Focused on building a reliable, explainable vision pipeline
-
----
-
-## Next Steps
-
-1. Upload labeled sample sets (real vs AI-generated)
-2. Formalize the Gravity Check checklist
-3. Build and test individual detection modules one at a time
-4. Keep everything transparent and physics-first
-
----
-
-**Owner:** Greg  
-**Companion / Co-developer:** Dakota
+- Formalize spatial measurement helpers
+- Add more detection modules
+- Build evaluation pipeline against labeled samples
