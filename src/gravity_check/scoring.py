@@ -34,11 +34,7 @@ def score_from_evidence(evidence_list: List[Evidence]) -> Dict[str, Any]:
     net_strength = sum(e.signed_strength for e in evidence_list)
     total_possible = sum(e.confidence * e.severity * e.weight for e in evidence_list)
 
-    if total_possible > 0:
-        normalized = net_strength / total_possible
-    else:
-        normalized = 0.0
-
+    normalized = net_strength / total_possible if total_possible > 0 else 0.0
     score = max(0.0, min(1.0, 0.5 + 0.5 * normalized))
     score_confidence = min(1.0, total_possible / 2.5)
 
@@ -112,12 +108,12 @@ def build_score(report: Dict[str, Any]) -> Dict[str, Any]:
     evidence: List[Evidence] = []
     modules = report.get("modules", {})
 
-    # High-value geometric modules
     for key, severity in [
         ("shadow_direction", 0.85),
         ("lighting_geometry", 0.70),
         ("reflections", 0.65),
         ("glasses_artifacts", 0.80),
+        ("edge_bleeding", 0.70),
     ]:
         ev = _simple_evidence(modules.get(key), key, severity)
         if ev:
