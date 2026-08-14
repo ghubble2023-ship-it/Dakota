@@ -9,10 +9,10 @@ Core questions this module answers:
 1. Approximate camera-to-subject distance relationships
 2. Subject-to-background distance relationships
 3. Relative scale of objects that should share the same depth
-4. Light direction consistency with the measured geometry
+4. Basic perspective / vanishing-point consistency (photogrammetry)
 """
 
-from typing import List, Optional
+from typing import List, Optional, Tuple, Dict
 import math
 
 
@@ -22,19 +22,6 @@ def estimate_relative_scale(
 ) -> dict:
     """
     Compare relative pixel heights of objects that should exist at similar depths.
-
-    Parameters
-    ----------
-    object_heights_px : list of float
-        Measured heights of objects in pixels.
-    assumed_real_heights_m : list of float, optional
-        Known or estimated real-world heights in meters.
-        If provided, returns approximate distance ratios.
-
-    Returns
-    -------
-    dict
-        Analysis of relative scale consistency.
     """
     if len(object_heights_px) < 2:
         return {
@@ -48,10 +35,7 @@ def estimate_relative_scale(
             if object_heights_px[j] == 0:
                 continue
             ratio = object_heights_px[i] / object_heights_px[j]
-            ratios.append({
-                "pair": (i, j),
-                "pixel_ratio": ratio
-            })
+            ratios.append({"pair": (i, j), "pixel_ratio": ratio})
 
     result = {
         "status": "ok",
@@ -67,7 +51,6 @@ def estimate_relative_scale(
         distance_hints = []
         for i, (h_px, h_m) in enumerate(zip(object_heights_px, assumed_real_heights_m)):
             if h_px > 0:
-                # Focal length cancels out in ratios; this is relative only
                 distance_hints.append({
                     "object_index": i,
                     "relative_distance_proxy": h_m / h_px
@@ -84,18 +67,9 @@ def check_depth_ordering(
 ) -> dict:
     """
     Basic depth ordering check using vertical position and scale.
-
-    In a normal perspective photo:
-    - Objects lower in the frame (higher y) are usually closer to camera
-    - Closer objects should appear larger if they are the same real size
-
-    This is a soft geometric consistency check, not a full depth map.
     """
     if len(object_bottoms_y) != len(object_heights_px):
-        return {
-            "consistent": False,
-            "explanation": "Mismatched input lengths."
-        }
+        return {"consistent": False, "explanation": "Mismatched input lengths."}
 
     if len(object_bottoms_y) < 2:
         return {
@@ -103,7 +77,6 @@ def check_depth_ordering(
             "explanation": "Only one object measured. Depth ordering not applicable."
         }
 
-    # Sort by vertical position (bottom of object)
     indexed = sorted(
         enumerate(zip(object_bottoms_y, object_heights_px)),
         key=lambda x: x[1][0]
@@ -114,10 +87,7 @@ def check_depth_ordering(
         idx_a, (y_a, h_a) = indexed[i]
         idx_b, (y_b, h_b) = indexed[i + 1]
 
-        # Object A is higher in frame (should be farther)
-        # Object B is lower in frame (should be closer)
-        # Therefore B should generally be larger if same real-world size
-        if h_a > h_b * 1.35:  # significant inversion
+        if h_a > h_b * 1.35:
             issues.append(
                 f"Object {idx_a} is higher in frame but significantly larger "
                 f"than object {idx_b} below it. Possible depth inconsistency."
@@ -141,43 +111,138 @@ def check_depth_ordering(
     }
 
 
+def estimate_vanishing_point(
+    lines: List[Tuple[Tuple[float, float], Tuple[float, float]]]
+) -> Dict:
+    """
+    Very simple vanishing-point estimator from a set of line segments.
+
+    Each line is given as ((x1, y1), (x2, y2)).
+    Returns the approximate intersection of the lines (vanishing point)
+    or signals that the lines are inconsistent.
+
+    This is a first photogrammetry building block.
+    """
+    if len(lines) < 2:
+        return {
+            "status": "insufficient_data",
+            "vanishing_point": None,
+            "explanation": "Need at least two lines to estimate a vanishing point."
+        }
+
+    # Convert lines to parametric form and find pairwise intersections
+    intersections = []
+    for i in range(len(lines)):
+        for j in range(i + 1, len(lines)):
+            (x1, y1), (x2, y2) = lines[i]
+            (x3, y3), (x4, y4) = lines[j]
+
+            denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+            if abs(denom) < 1e-8:
+                continue  # parallel
+
+            px = ((x1*y2 - y1*x2)*(x3 - x4) - (x1 - x2)*(x3*y4 - y3*x4)) / denom
+            py = ((x1*y2 - y1*x2)*(y3 - y4) - (y1 - y2)*(x3*y4 - y3*x4)) / denom
+            intersections.append((px, py))
+
+    if not intersections:
+        return {
+            "status": "no_intersection",
+            "vanishing_point": None,
+            "explanation": "Lines appear parallel or nearly parallel; no reliable vanishing point."
+        }
+
+    # Average the intersections
+    avg_x = sum(p[0] for p in intersections) / len(intersections)
+    avg_y = sum(p[1] for p in intersections) / len(intersections)
+
+    # Simple spread check
+    spreads = [math.hypot(p[0] - avg_x, p[1] - avg_y) for p in intersections]
+    max_spread = max(spreads) if spreads else 0.0
+
+    consistent = max_spread < 80.0  # pixels — soft threshold
+
+    return {
+        "status": "ok" if consistent else "inconsistent",
+        "vanishing_point": (avg_x, avg_y),
+        "max_spread": max_spread,
+        "intersection_count": len(intersections),
+        "explanation": (
+            f"Vanishing point estimated at ({avg_x:.1f}, {avg_y:.1f}). "
+            f"Spread of intersections: {max_spread:.1f}px. "
+            + ("Consistent." if consistent else "High spread — perspective may be inconsistent.")
+        )
+    }
+
+
+def check_perspective_consistency(
+    object_bottoms_y: List[float],
+    object_heights_px: List[float],
+    vanishing_point_y: Optional[float] = None
+) -> dict:
+    """
+    Soft perspective check.
+
+    If a vanishing point Y is known, objects should generally get smaller
+    as they approach that vanishing line.
+    """
+    if vanishing_point_y is None or len(object_bottoms_y) < 2:
+        return {
+            "status": "skipped",
+            "explanation": "No vanishing point supplied or insufficient objects."
+        }
+
+    # Objects closer to the vanishing point (in Y) should tend to be smaller
+    issues = []
+    for i, (y, h) in enumerate(zip(object_bottoms_y, object_heights_px)):
+        distance_to_vp = abs(y - vanishing_point_y)
+        # This is only a weak heuristic for now
+        if distance_to_vp < 40 and h > 300:
+            issues.append(
+                f"Object {i} is very close to the vanishing line but still large."
+            )
+
+    return {
+        "status": "ok" if not issues else "warning",
+        "issues": issues,
+        "explanation": (
+            "Perspective consistency check passed."
+            if not issues else
+            "Possible perspective / scale conflict near vanishing line."
+        )
+    }
+
+
 def spatial_report(
     object_heights_px: List[float],
     object_bottoms_y: List[float],
     image_height: float,
-    assumed_real_heights_m: Optional[List[float]] = None
+    assumed_real_heights_m: Optional[List[float]] = None,
+    perspective_lines: Optional[List[Tuple[Tuple[float, float], Tuple[float, float]]]] = None
 ) -> dict:
     """
-    Full spatial measurement pass.
-
-    This is the entry point that should be called before any other
-    Gravity Check module (shadows, reflections, glasses, etc.).
+    Full spatial measurement pass (entry point).
     """
     scale = estimate_relative_scale(object_heights_px, assumed_real_heights_m)
     depth = check_depth_ordering(object_bottoms_y, object_heights_px, image_height)
+
+    vanishing = None
+    perspective = None
+    if perspective_lines:
+        vanishing = estimate_vanishing_point(perspective_lines)
+        vp_y = vanishing["vanishing_point"][1] if vanishing.get("vanishing_point") else None
+        perspective = check_perspective_consistency(
+            object_bottoms_y, object_heights_px, vp_y
+        )
 
     return {
         "module": "spatial_measurement",
         "scale_analysis": scale,
         "depth_ordering": depth,
+        "vanishing_point": vanishing,
+        "perspective_check": perspective,
         "summary": (
             "Spatial measurement complete. "
             "This establishes the geometric baseline for all subsequent checks."
         )
     }
-
-
-if __name__ == "__main__":
-    # Example: two people of similar real height
-    # One appears much larger and is higher in the frame → suspicious
-    heights = [420.0, 280.0]          # pixels
-    bottoms = [310.0, 520.0]          # y coordinates
-    img_h = 720.0
-
-    report = spatial_report(heights, bottoms, img_h)
-    print("Spatial Measurement Report")
-    print("==========================")
-    print(report["depth_ordering"]["explanation"])
-    if report["depth_ordering"]["issues"]:
-        for issue in report["depth_ordering"]["issues"]:
-            print(" -", issue)
