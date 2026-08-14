@@ -39,8 +39,7 @@ def score_from_evidence(evidence_list: List[Evidence]) -> Dict[str, Any]:
     else:
         normalized = 0.0
 
-    score = 0.5 + 0.5 * normalized
-    score = max(0.0, min(1.0, score))
+    score = max(0.0, min(1.0, 0.5 + 0.5 * normalized))
     score_confidence = min(1.0, total_possible / 2.5)
 
     if score >= 0.75:
@@ -74,15 +73,15 @@ def score_from_evidence(evidence_list: List[Evidence]) -> Dict[str, Any]:
     }
 
 
-def evidence_from_shadow(shadow_result: Dict[str, Any]) -> Optional[Evidence]:
-    if not shadow_result or shadow_result.get("consistent") is None:
+def _simple_evidence(result: Dict[str, Any], module: str, severity: float) -> Optional[Evidence]:
+    if not result or result.get("consistent") is None:
         return None
     return Evidence(
-        module="shadow_direction",
-        supports_consistency=bool(shadow_result["consistent"]),
-        confidence=float(shadow_result.get("confidence", 0.5)),
-        severity=0.85,
-        note=shadow_result.get("explanation", "")[:120]
+        module=module,
+        supports_consistency=bool(result["consistent"]),
+        confidence=float(result.get("confidence", 0.5)),
+        severity=severity,
+        note=result.get("explanation", "")[:120]
     )
 
 
@@ -109,41 +108,18 @@ def evidence_from_spatial(spatial_result: Dict[str, Any]) -> List[Evidence]:
     return items
 
 
-def evidence_from_lighting(lighting_result: Dict[str, Any]) -> Optional[Evidence]:
-    if not lighting_result or lighting_result.get("consistent") is None:
-        return None
-    return Evidence(
-        module="lighting_geometry",
-        supports_consistency=bool(lighting_result["consistent"]),
-        confidence=float(lighting_result.get("confidence", 0.5)),
-        severity=0.70,
-        note=lighting_result.get("explanation", "")[:120]
-    )
-
-
-def evidence_from_reflections(reflections_result: Dict[str, Any]) -> Optional[Evidence]:
-    if not reflections_result or reflections_result.get("consistent") is None:
-        return None
-    return Evidence(
-        module="reflections",
-        supports_consistency=bool(reflections_result["consistent"]),
-        confidence=float(reflections_result.get("confidence", 0.5)),
-        severity=0.65,
-        note=reflections_result.get("explanation", "")[:120]
-    )
-
-
 def build_score(report: Dict[str, Any]) -> Dict[str, Any]:
     evidence: List[Evidence] = []
     modules = report.get("modules", {})
 
-    for converter, key in [
-        (evidence_from_shadow, "shadow_direction"),
-        (evidence_from_lighting, "lighting_geometry"),
-        (evidence_from_reflections, "reflections"),
+    # High-value geometric modules
+    for key, severity in [
+        ("shadow_direction", 0.85),
+        ("lighting_geometry", 0.70),
+        ("reflections", 0.65),
+        ("glasses_artifacts", 0.80),
     ]:
-        result = modules.get(key)
-        ev = converter(result) if result else None
+        ev = _simple_evidence(modules.get(key), key, severity)
         if ev:
             evidence.append(ev)
 
