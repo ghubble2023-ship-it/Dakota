@@ -8,6 +8,7 @@ with weighted evidence scoring.
 from typing import List, Tuple, Optional, Dict, Any
 from .spatial_measurement import spatial_report
 from .shadow_direction import analyze_shadow_consistency
+from .lighting_geometry import analyze_lighting_geometry
 from .scoring import build_score
 
 
@@ -22,6 +23,11 @@ def run_gravity_check(
     # --- Shadow inputs ---
     shadow_vectors: Optional[List[Tuple[float, float]]] = None,
     shadow_lengths: Optional[List[float]] = None,
+
+    # --- Lighting inputs ---
+    object_bright_side_angles: Optional[List[float]] = None,
+    object_distances_proxy: Optional[List[float]] = None,
+    object_brightness: Optional[List[float]] = None,
 ) -> Dict[str, Any]:
     """
     Run the full Gravity Check pipeline.
@@ -31,7 +37,7 @@ def run_gravity_check(
 
     report: Dict[str, Any] = {
         "engine": "Gravity Check",
-        "version": "0.3.0",
+        "version": "0.4.0",
         "modules_run": [],
         "flags": [],
         "modules": {}
@@ -56,6 +62,7 @@ def run_gravity_check(
     # -------------------------------------------------
     # 2. SHADOW DIRECTION
     # -------------------------------------------------
+    light_angle = None
     if shadow_vectors:
         shadow = analyze_shadow_consistency(
             shadow_vectors=shadow_vectors,
@@ -66,6 +73,32 @@ def run_gravity_check(
 
         if not shadow.get("consistent", True):
             report["flags"].append("shadow_inconsistency")
+
+        # Use average shadow direction as the light direction estimate
+        # (shadows point away from the light, so we reverse it)
+        if shadow.get("average_angle") is not None:
+            light_angle = (shadow["average_angle"] + 180) % 360
+
+    # -------------------------------------------------
+    # 3. LIGHTING GEOMETRY
+    # -------------------------------------------------
+    has_lighting_data = (
+        object_bright_side_angles is not None
+        or (object_distances_proxy is not None and object_brightness is not None)
+    )
+
+    if has_lighting_data:
+        lighting = analyze_lighting_geometry(
+            light_angle=light_angle,
+            object_bright_side_angles=object_bright_side_angles,
+            object_distances_proxy=object_distances_proxy,
+            object_brightness=object_brightness,
+        )
+        report["modules"]["lighting_geometry"] = lighting
+        report["modules_run"].append("lighting_geometry")
+
+        if lighting.get("consistent") is False:
+            report["flags"].append("lighting_inconsistency")
 
     # -------------------------------------------------
     # WEIGHTED EVIDENCE SCORING
@@ -101,14 +134,3 @@ def run_gravity_check(
     report["summary"] = summary
     report["score"] = score
     return report
-
-
-if __name__ == "__main__":
-    demo = run_gravity_check(
-        object_heights_px=[420.0, 280.0],
-        object_bottoms_y=[310.0, 520.0],
-        image_height=720.0,
-        shadow_vectors=[(0.9, -0.4), (0.85, -0.5), (0.88, -0.45)]
-    )
-    print(demo["summary"])
-    print("Score:", demo["score"])
