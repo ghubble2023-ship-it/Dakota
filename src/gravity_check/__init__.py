@@ -18,6 +18,7 @@ from .measurement import (
     measure_object_from_bbox,
     feed_to_engine,
 )
+from .scoring import Evidence, score_from_evidence, build_score
 
 __all__ = [
     # Spatial
@@ -31,7 +32,7 @@ __all__ = [
     "shadow_vector_from_points",
     # Engine
     "run_gravity_check",
-    # Measurement front-end
+    # Measurement
     "ImageMeasurements",
     "ObjectMeasurement",
     "ShadowMeasurement",
@@ -39,4 +40,8 @@ __all__ = [
     "measure_shadow_from_points",
     "measure_object_from_bbox",
     "feed_to_engine",
+    # Scoring
+    "Evidence",
+    "score_from_evidence",
+    "build_score",
 ]
