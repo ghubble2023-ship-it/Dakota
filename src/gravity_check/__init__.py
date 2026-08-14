@@ -8,6 +8,7 @@ from .spatial_measurement import (
     check_perspective_consistency,
 )
 from .shadow_direction import analyze_shadow_consistency, shadow_vector_from_points
+from .lighting_geometry import analyze_lighting_geometry
 from .engine import run_gravity_check
 from .measurement import (
     ImageMeasurements,
@@ -30,6 +31,8 @@ __all__ = [
     # Shadow
     "analyze_shadow_consistency",
     "shadow_vector_from_points",
+    # Lighting
+    "analyze_lighting_geometry",
     # Engine
     "run_gravity_check",
     # Measurement
