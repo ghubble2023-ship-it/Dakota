@@ -2,7 +2,8 @@
 Gravity Check - Shadow Direction Module
 
 Goal:
-Determine whether shadows in an image are consistent with a single light source.
+Determine whether shadows in an image are consistent with a single light source
+using robust circular statistics.
 
 This module is pure geometry. It does not look at pixels.
 It only reasons about the direction (and optionally length) of shadows
@@ -25,10 +26,7 @@ def _angular_difference(a: float, b: float) -> float:
 
 
 def _circular_mean(angles: List[float], weights: Optional[List[float]] = None) -> float:
-    """
-    Compute the circular mean of a list of angles.
-    Optional weights let longer / more reliable shadows count more.
-    """
+    """Circular mean of angles (degrees). Supports optional weights."""
     if weights is None:
         weights = [1.0] * len(angles)
 
@@ -42,90 +40,153 @@ def _circular_mean(angles: List[float], weights: Optional[List[float]] = None) -
     return math.degrees(math.atan2(sin_sum, cos_sum))
 
 
+def _circular_stats(angles: List[float], weights: Optional[List[float]] = None) -> Dict:
+    """
+    Compute robust circular statistics.
+
+    Returns:
+        mean_angle     : circular mean (degrees)
+        R              : mean resultant length (0 to 1)
+        kappa          : approximate concentration parameter
+        angular_std    : circular standard deviation (degrees)
+    """
+    n = len(angles)
+    if n == 0:
+        return {"mean_angle": None, "R": 0.0, "kappa": 0.0, "angular_std": None}
+
+    if weights is None:
+        weights = [1.0] * n
+
+    total_weight = sum(weights)
+    if total_weight <= 0:
+        total_weight = 1.0
+
+    sin_sum = 0.0
+    cos_sum = 0.0
+    for angle, w in zip(angles, weights):
+        rad = math.radians(angle)
+        sin_sum += w * math.sin(rad)
+        cos_sum += w * math.cos(rad)
+
+    # Mean resultant length R (0 = uniform, 1 = perfectly concentrated)
+    R = math.sqrt(sin_sum**2 + cos_sum**2) / total_weight
+    R = max(0.0, min(1.0, R))
+
+    mean_angle = math.degrees(math.atan2(sin_sum, cos_sum))
+
+    # Approximate concentration kappa (Banerjee / Mardia approximation)
+    if R < 0.53:
+        kappa = 2 * R + R**3 + (5/6) * R**5
+    elif R < 0.85:
+        kappa = -0.4 + 1.39 * R + 0.43 / (1 - R)
+    else:
+        kappa = 1 / (R**3 - 4 * R**2 + 3 * R) if (R**3 - 4 * R**2 + 3 * R) != 0 else 100.0
+
+    # Circular standard deviation in degrees
+    if R > 0.0:
+        angular_std = math.degrees(math.sqrt(-2.0 * math.log(R)))
+    else:
+        angular_std = 180.0
+
+    return {
+        "mean_angle": mean_angle,
+        "R": R,
+        "kappa": kappa,
+        "angular_std": angular_std
+    }
+
+
 def analyze_shadow_consistency(
     shadow_vectors: List[Tuple[float, float]],
     tolerance_degrees: float = 25.0,
     shadow_lengths: Optional[List[float]] = None,
-    length_tolerance_ratio: float = 0.55
+    length_tolerance_ratio: float = 0.55,
+    min_confidence: float = 0.55
 ) -> Dict:
     """
-    Analyze a list of shadow direction vectors for consistency with a single light source.
+    Analyze shadow direction consistency using robust circular statistics.
 
     Parameters
     ----------
     shadow_vectors : list of (dx, dy)
         Direction vectors of detected shadows.
-        Example: [(0.8, -0.6), (0.75, -0.65)]
 
     tolerance_degrees : float
-        Maximum allowed angular deviation from the average direction.
-        Default 25° is intentional — real soft shadows and surface tilt create variation,
-        but large conflicts are strong evidence of generation error.
+        Soft angular tolerance (still reported for transparency).
 
     shadow_lengths : list of float, optional
-        Length of each shadow in the same order as the vectors.
-        When provided, longer shadows receive higher weight in the average
-        and a simple length-consistency check is also performed.
+        Lengths used for weighting and length-consistency check.
 
     length_tolerance_ratio : float
-        If lengths are supplied, the shortest shadow should not be shorter than
-        this ratio of the longest shadow (default 0.55).
-        Extreme length differences under the same light can be suspicious.
+        Minimum allowed (shortest / longest) length ratio.
+
+    min_confidence : float
+        Minimum confidence (0-1) required to declare consistency.
 
     Returns
     -------
-    dict with keys:
-        consistent          : bool
-        average_angle       : float or None
-        max_deviation       : float or None
-        deviations          : list of float
-        length_consistent   : bool or None
-        explanation         : str
-        details             : dict (extra diagnostics)
+    dict containing:
+        consistent, confidence, average_angle, max_deviation,
+        angular_std, R, kappa, length_consistent, explanation, details
     """
     if not shadow_vectors:
         return {
             "consistent": False,
+            "confidence": 0.0,
             "average_angle": None,
             "max_deviation": None,
+            "angular_std": None,
+            "R": 0.0,
+            "kappa": 0.0,
             "deviations": [],
             "length_consistent": None,
             "explanation": "No shadow vectors provided.",
             "details": {}
         }
 
-    # --- Convert vectors to angles ---
     angles = [_vector_to_angle(dx, dy) for dx, dy in shadow_vectors]
 
-    # --- Single shadow case ---
+    # Single observation
     if len(shadow_vectors) == 1:
         return {
             "consistent": True,
+            "confidence": 0.35,
             "average_angle": angles[0],
             "max_deviation": 0.0,
+            "angular_std": 0.0,
+            "R": 1.0,
+            "kappa": 100.0,
             "deviations": [0.0],
             "length_consistent": None,
             "explanation": (
                 "Only one shadow detected. "
-                "Direction consistency cannot be fully verified with a single observation."
+                "Direction consistency cannot be fully verified."
             ),
             "details": {"shadow_count": 1}
         }
 
-    # --- Weighted circular mean ---
+    # Weights from lengths
     weights = None
     if shadow_lengths and len(shadow_lengths) == len(shadow_vectors):
-        # Longer shadows are usually more reliable
         weights = [max(l, 0.01) for l in shadow_lengths]
 
-    mean_angle = _circular_mean(angles, weights)
+    stats = _circular_stats(angles, weights)
+    mean_angle = stats["mean_angle"]
+    R = stats["R"]
+    kappa = stats["kappa"]
+    angular_std = stats["angular_std"]
 
-    # --- Angular deviations ---
     deviations = [_angular_difference(a, mean_angle) for a in angles]
     max_deviation = max(deviations)
-    direction_consistent = max_deviation <= tolerance_degrees
 
-    # --- Optional length consistency ---
+    # Confidence score (0 → 1)
+    # Driven primarily by concentration R and secondarily by angular spread
+    conf_from_R = R ** 1.4
+    conf_from_std = max(0.0, 1.0 - (angular_std / 90.0))
+    confidence = 0.65 * conf_from_R + 0.35 * conf_from_std
+    confidence = max(0.0, min(1.0, confidence))
+
+    # Length consistency
     length_consistent = None
     length_note = ""
     if shadow_lengths and len(shadow_lengths) == len(shadow_vectors):
@@ -139,37 +200,43 @@ def analyze_shadow_consistency(
                     f" Shadow lengths also vary strongly "
                     f"(shortest is only {ratio:.0%} of longest)."
                 )
+                confidence *= 0.7  # penalize confidence
 
-    # --- Final decision ---
-    overall_consistent = direction_consistent and (length_consistent is not False)
+    direction_ok = max_deviation <= tolerance_degrees and confidence >= min_confidence
+    overall_consistent = direction_ok and (length_consistent is not False)
 
     if overall_consistent:
         explanation = (
             f"Shadows are consistent with a single light source. "
             f"Average direction: {mean_angle:.1f}°. "
-            f"Maximum angular deviation: {max_deviation:.1f}° "
-            f"(within {tolerance_degrees}° tolerance)."
+            f"Concentration R={R:.3f}, κ≈{kappa:.1f}, "
+            f"angular std={angular_std:.1f}°, confidence={confidence:.2f}."
         )
     else:
         explanation = (
-            f"Shadows are inconsistent. "
+            f"Shadows are inconsistent with a single light source. "
             f"Average direction: {mean_angle:.1f}°. "
-            f"Maximum angular deviation: {max_deviation:.1f}° "
-            f"exceeds the {tolerance_degrees}° tolerance. "
-            f"This suggests multiple or conflicting light sources."
+            f"Max deviation={max_deviation:.1f}°, "
+            f"R={R:.3f}, angular std={angular_std:.1f}°, "
+            f"confidence={confidence:.2f}."
         )
         explanation += length_note
 
     return {
         "consistent": overall_consistent,
+        "confidence": round(confidence, 3),
         "average_angle": mean_angle,
         "max_deviation": max_deviation,
+        "angular_std": angular_std,
+        "R": round(R, 4),
+        "kappa": round(kappa, 2),
         "deviations": deviations,
         "length_consistent": length_consistent,
         "explanation": explanation,
         "details": {
             "shadow_count": len(shadow_vectors),
             "tolerance_degrees": tolerance_degrees,
+            "min_confidence": min_confidence,
             "angles": angles,
             "weights_used": weights is not None
         }
@@ -180,31 +247,13 @@ def shadow_vector_from_points(
     start: Tuple[float, float],
     end: Tuple[float, float]
 ) -> Tuple[float, float]:
-    """
-    Helper: create a direction vector from two points
-    (object contact point → tip of the shadow).
-    """
+    """Create a direction vector from two points (contact → tip of shadow)."""
     return (end[0] - start[0], end[1] - start[1])
 
 
 if __name__ == "__main__":
-    # Test 1 — consistent shadows
     test_consistent = [(0.9, -0.4), (0.85, -0.5), (0.88, -0.45)]
-    result1 = analyze_shadow_consistency(test_consistent)
-    print("Test 1 (should be consistent):")
-    print(result1["explanation"])
-    print()
+    print("Consistent:", analyze_shadow_consistency(test_consistent)["explanation"])
 
-    # Test 2 — inconsistent shadows
     test_inconsistent = [(0.9, -0.4), (-0.7, 0.6), (0.1, 0.9)]
-    result2 = analyze_shadow_consistency(test_inconsistent)
-    print("Test 2 (should be inconsistent):")
-    print(result2["explanation"])
-    print()
-
-    # Test 3 — with lengths
-    vectors = [(0.9, -0.4), (0.85, -0.5)]
-    lengths = [120.0, 40.0]  # large length difference
-    result3 = analyze_shadow_consistency(vectors, shadow_lengths=lengths)
-    print("Test 3 (direction ok, length suspicious):")
-    print(result3["explanation"])
+    print("Inconsistent:", analyze_shadow_consistency(test_inconsistent)["explanation"])
