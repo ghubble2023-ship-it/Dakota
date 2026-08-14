@@ -10,6 +10,7 @@ from .spatial_measurement import (
 from .shadow_direction import analyze_shadow_consistency, shadow_vector_from_points
 from .lighting_geometry import analyze_lighting_geometry
 from .reflections import analyze_reflections
+from .glasses_artifacts import analyze_glasses_artifacts
 from .engine import run_gravity_check
 from .measurement import (
     ImageMeasurements,
@@ -32,6 +33,7 @@ __all__ = [
     "shadow_vector_from_points",
     "analyze_lighting_geometry",
     "analyze_reflections",
+    "analyze_glasses_artifacts",
     "run_gravity_check",
     "ImageMeasurements",
     "ObjectMeasurement",
