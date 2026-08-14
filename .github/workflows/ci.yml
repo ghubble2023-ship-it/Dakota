@@ -14,23 +14,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check required files exist
+      - name: Check required core files exist
         run: |
           echo "Checking core files..."
-          test -f README.md && echo "✓ README.md found" || (echo "✗ README.md missing" && exit 1)
+          test -f README.md && echo "✓ README.md" || (echo "✗ README.md missing" && exit 1)
+          test -f docs/gravity-check-checklist.md && echo "✓ gravity-check-checklist.md" || (echo "✗ checklist missing" && exit 1)
+          test -f src/gravity_check/__init__.py && echo "✓ __init__.py" || (echo "✗ __init__.py missing" && exit 1)
+          test -f src/gravity_check/spatial_measurement.py && echo "✓ spatial_measurement.py" || (echo "✗ spatial_measurement.py missing" && exit 1)
+          test -f src/gravity_check/shadow_direction.py && echo "✓ shadow_direction.py" || (echo "✗ shadow_direction.py missing" && exit 1)
 
-      - name: Validate Markdown (README)
-        uses: avto-dev/markdown-lint@v1
-        with:
-          config: |
-            {
-              "default": true,
-              "MD013": false,
-              "MD033": false
-            }
-          args: README.md
+      - name: Validate Python syntax
+        run: |
+          python -m py_compile src/gravity_check/spatial_measurement.py
+          python -m py_compile src/gravity_check/shadow_direction.py
+          python -m py_compile src/gravity_check/__init__.py
+          echo "✓ All Python modules compile cleanly"
 
-      - name: Show repository structure
+      - name: Show final repository structure
         run: |
           echo "Current repository structure:"
           find . -type f -not -path './.git/*' | sort
