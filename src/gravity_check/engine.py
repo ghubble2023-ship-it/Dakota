@@ -10,6 +10,7 @@ from .spatial_measurement import spatial_report
 from .shadow_direction import analyze_shadow_consistency
 from .lighting_geometry import analyze_lighting_geometry
 from .reflections import analyze_reflections
+from .glasses_artifacts import analyze_glasses_artifacts
 from .scoring import build_score
 
 
@@ -37,6 +38,17 @@ def run_gravity_check(
     reflection_centers: Optional[List[Tuple[float, float]]] = None,
     mirror_line_y: Optional[float] = None,
     reflection_heights_px: Optional[List[float]] = None,
+
+    # --- Glasses inputs ---
+    primary_frame_detected: bool = False,
+    secondary_ghost_detected: bool = False,
+    ghost_offset_px: Optional[float] = None,
+    frame_hair_overlap: bool = False,
+    frame_skin_overlap: bool = False,
+    bleeding_severity: float = 0.0,
+    expected_lens_reflections: int = 0,
+    observed_lens_reflections: int = 0,
+    reflections_consistent_with_light: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """
     Run the full Gravity Check pipeline.
@@ -44,7 +56,7 @@ def run_gravity_check(
 
     report: Dict[str, Any] = {
         "engine": "Gravity Check",
-        "version": "0.5.0",
+        "version": "0.6.0",
         "modules_run": [],
         "flags": [],
         "modules": {}
@@ -120,6 +132,33 @@ def run_gravity_check(
 
         if reflections.get("consistent") is False:
             report["flags"].append("reflection_inconsistency")
+
+    # 5. GLASSES & FRAME ARTIFACTS
+    has_glasses_data = (
+        primary_frame_detected
+        or secondary_ghost_detected
+        or frame_hair_overlap
+        or frame_skin_overlap
+        or observed_lens_reflections > 0
+        or expected_lens_reflections > 0
+    )
+    if has_glasses_data:
+        glasses = analyze_glasses_artifacts(
+            primary_frame_detected=primary_frame_detected,
+            secondary_ghost_detected=secondary_ghost_detected,
+            ghost_offset_px=ghost_offset_px,
+            frame_hair_overlap=frame_hair_overlap,
+            frame_skin_overlap=frame_skin_overlap,
+            bleeding_severity=bleeding_severity,
+            expected_lens_reflections=expected_lens_reflections,
+            observed_lens_reflections=observed_lens_reflections,
+            reflections_consistent_with_light=reflections_consistent_with_light,
+        )
+        report["modules"]["glasses_artifacts"] = glasses
+        report["modules_run"].append("glasses_artifacts")
+
+        if glasses.get("consistent") is False:
+            report["flags"].append("glasses_artifact")
 
     # WEIGHTED SCORING
     scoring = build_score(report)
