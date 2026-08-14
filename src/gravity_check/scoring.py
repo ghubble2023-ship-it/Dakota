@@ -1,12 +1,5 @@
 """
 Gravity Check - Weighted Evidence Scoring
-
-Each module contributes evidence with:
-- direction (supports consistency or not)
-- confidence
-- severity
-
-Final score: 0.0 (strong inconsistency) → 1.0 (strong consistency)
 """
 
 from typing import List, Dict, Any, Optional
@@ -48,7 +41,6 @@ def score_from_evidence(evidence_list: List[Evidence]) -> Dict[str, Any]:
 
     score = 0.5 + 0.5 * normalized
     score = max(0.0, min(1.0, score))
-
     score_confidence = min(1.0, total_possible / 2.5)
 
     if score >= 0.75:
@@ -83,14 +75,11 @@ def score_from_evidence(evidence_list: List[Evidence]) -> Dict[str, Any]:
 
 
 def evidence_from_shadow(shadow_result: Dict[str, Any]) -> Optional[Evidence]:
-    if not shadow_result:
-        return None
-    consistent = shadow_result.get("consistent")
-    if consistent is None:
+    if not shadow_result or shadow_result.get("consistent") is None:
         return None
     return Evidence(
         module="shadow_direction",
-        supports_consistency=bool(consistent),
+        supports_consistency=bool(shadow_result["consistent"]),
         confidence=float(shadow_result.get("confidence", 0.5)),
         severity=0.85,
         note=shadow_result.get("explanation", "")[:120]
@@ -108,7 +97,6 @@ def evidence_from_spatial(spatial_result: Dict[str, Any]) -> List[Evidence]:
             severity=0.55,
             note=depth.get("explanation", "")[:120]
         ))
-
     vanishing = spatial_result.get("vanishing_point", {})
     if vanishing and vanishing.get("status") in ("ok", "inconsistent"):
         items.append(Evidence(
@@ -122,17 +110,26 @@ def evidence_from_spatial(spatial_result: Dict[str, Any]) -> List[Evidence]:
 
 
 def evidence_from_lighting(lighting_result: Dict[str, Any]) -> Optional[Evidence]:
-    if not lighting_result:
-        return None
-    consistent = lighting_result.get("consistent")
-    if consistent is None:
+    if not lighting_result or lighting_result.get("consistent") is None:
         return None
     return Evidence(
         module="lighting_geometry",
-        supports_consistency=bool(consistent),
+        supports_consistency=bool(lighting_result["consistent"]),
         confidence=float(lighting_result.get("confidence", 0.5)),
         severity=0.70,
         note=lighting_result.get("explanation", "")[:120]
+    )
+
+
+def evidence_from_reflections(reflections_result: Dict[str, Any]) -> Optional[Evidence]:
+    if not reflections_result or reflections_result.get("consistent") is None:
+        return None
+    return Evidence(
+        module="reflections",
+        supports_consistency=bool(reflections_result["consistent"]),
+        confidence=float(reflections_result.get("confidence", 0.5)),
+        severity=0.65,
+        note=reflections_result.get("explanation", "")[:120]
     )
 
 
@@ -140,18 +137,18 @@ def build_score(report: Dict[str, Any]) -> Dict[str, Any]:
     evidence: List[Evidence] = []
     modules = report.get("modules", {})
 
-    shadow = modules.get("shadow_direction")
-    ev = evidence_from_shadow(shadow) if shadow else None
-    if ev:
-        evidence.append(ev)
+    for converter, key in [
+        (evidence_from_shadow, "shadow_direction"),
+        (evidence_from_lighting, "lighting_geometry"),
+        (evidence_from_reflections, "reflections"),
+    ]:
+        result = modules.get(key)
+        ev = converter(result) if result else None
+        if ev:
+            evidence.append(ev)
 
     spatial = modules.get("spatial_measurement")
     if spatial:
         evidence.extend(evidence_from_spatial(spatial))
-
-    lighting = modules.get("lighting_geometry")
-    ev = evidence_from_lighting(lighting) if lighting else None
-    if ev:
-        evidence.append(ev)
 
     return score_from_evidence(evidence)
