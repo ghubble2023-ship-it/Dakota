@@ -1,22 +1,14 @@
 """
 Gravity Check Engine
 
-This is the orchestrator. It runs the modules in the correct order
-and produces a single unified report.
-
-Current status:
-- Spatial Measurement  → implemented
-- Shadow Direction     → implemented (with circular statistics)
-- Future modules       → Lighting, Reflections, Glasses, Edges (placeholders)
-
-The engine does NOT yet extract measurements from raw pixels.
-It expects structured measurements to be supplied.
-That extraction layer is the next major piece of work.
+Orchestrates modules in order and produces a unified report
+with weighted evidence scoring.
 """
 
 from typing import List, Tuple, Optional, Dict, Any
 from .spatial_measurement import spatial_report
 from .shadow_direction import analyze_shadow_consistency
+from .scoring import build_score
 
 
 def run_gravity_check(
@@ -30,25 +22,17 @@ def run_gravity_check(
     # --- Shadow inputs ---
     shadow_vectors: Optional[List[Tuple[float, float]]] = None,
     shadow_lengths: Optional[List[float]] = None,
-
-    # --- Future module inputs (placeholders) ---
-    # lighting_data=None,
-    # reflection_data=None,
-    # glasses_data=None,
-    # edge_data=None,
 ) -> Dict[str, Any]:
     """
-    Run the full Gravity Check pipeline in the correct order.
+    Run the full Gravity Check pipeline.
 
-    Returns a unified report with per-module results and an overall assessment.
+    Returns a unified report with per-module results and a weighted score.
     """
 
     report: Dict[str, Any] = {
         "engine": "Gravity Check",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "modules_run": [],
-        "overall_consistent": True,
-        "overall_confidence": 1.0,
         "flags": [],
         "modules": {}
     }
@@ -66,11 +50,8 @@ def run_gravity_check(
     report["modules"]["spatial_measurement"] = spatial
     report["modules_run"].append("spatial_measurement")
 
-    # Soft impact on overall score
     if spatial.get("depth_ordering", {}).get("consistent") is False:
-        report["overall_consistent"] = False
         report["flags"].append("depth_ordering_conflict")
-        report["overall_confidence"] *= 0.7
 
     # -------------------------------------------------
     # 2. SHADOW DIRECTION
@@ -84,45 +65,45 @@ def run_gravity_check(
         report["modules_run"].append("shadow_direction")
 
         if not shadow.get("consistent", True):
-            report["overall_consistent"] = False
             report["flags"].append("shadow_inconsistency")
 
-        # Blend confidence
-        shadow_conf = shadow.get("confidence", 0.5)
-        report["overall_confidence"] *= (0.4 + 0.6 * shadow_conf)
-
     # -------------------------------------------------
-    # 3–7. FUTURE MODULES (placeholders)
+    # WEIGHTED EVIDENCE SCORING
     # -------------------------------------------------
-    # report["modules"]["lighting_geometry"] = ...
-    # report["modules"]["reflections"] = ...
-    # report["modules"]["glasses_artifacts"] = ...
-    # report["modules"]["edge_bleeding"] = ...
+    scoring = build_score(report)
+    report["scoring"] = scoring
 
     # -------------------------------------------------
     # Final summary
     # -------------------------------------------------
-    report["overall_confidence"] = round(max(0.0, min(1.0, report["overall_confidence"])), 3)
+    score = scoring["score"]
+    interpretation = scoring["interpretation"]
 
-    if report["overall_consistent"]:
+    if score >= 0.60:
         summary = (
-            f"Gravity Check passed. "
-            f"Modules run: {', '.join(report['modules_run'])}. "
-            f"Overall confidence: {report['overall_confidence']:.2f}."
+            f"Gravity Check: mostly consistent. "
+            f"Score {score:.2f}. {interpretation} "
+            f"Modules: {', '.join(report['modules_run'])}."
+        )
+    elif score >= 0.45:
+        summary = (
+            f"Gravity Check: inconclusive. "
+            f"Score {score:.2f}. {interpretation} "
+            f"Modules: {', '.join(report['modules_run'])}."
         )
     else:
         summary = (
-            f"Gravity Check flagged issues. "
-            f"Flags: {', '.join(report['flags'])}. "
-            f"Overall confidence: {report['overall_confidence']:.2f}."
+            f"Gravity Check: inconsistencies detected. "
+            f"Score {score:.2f}. {interpretation} "
+            f"Flags: {', '.join(report['flags']) if report['flags'] else 'none'}."
         )
 
     report["summary"] = summary
+    report["score"] = score
     return report
 
 
 if __name__ == "__main__":
-    # Minimal demo
     demo = run_gravity_check(
         object_heights_px=[420.0, 280.0],
         object_bottoms_y=[310.0, 520.0],
@@ -130,4 +111,4 @@ if __name__ == "__main__":
         shadow_vectors=[(0.9, -0.4), (0.85, -0.5), (0.88, -0.45)]
     )
     print(demo["summary"])
-    print("Modules run:", demo["modules_run"])
+    print("Score:", demo["score"])
