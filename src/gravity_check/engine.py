@@ -9,6 +9,7 @@ from typing import List, Tuple, Optional, Dict, Any
 from .spatial_measurement import spatial_report
 from .shadow_direction import analyze_shadow_consistency
 from .lighting_geometry import analyze_lighting_geometry
+from .reflections import analyze_reflections
 from .scoring import build_score
 
 
@@ -28,24 +29,28 @@ def run_gravity_check(
     object_bright_side_angles: Optional[List[float]] = None,
     object_distances_proxy: Optional[List[float]] = None,
     object_brightness: Optional[List[float]] = None,
+
+    # --- Reflection inputs ---
+    expected_reflections: int = 0,
+    observed_reflections: int = 0,
+    reflection_object_centers: Optional[List[Tuple[float, float]]] = None,
+    reflection_centers: Optional[List[Tuple[float, float]]] = None,
+    mirror_line_y: Optional[float] = None,
+    reflection_heights_px: Optional[List[float]] = None,
 ) -> Dict[str, Any]:
     """
     Run the full Gravity Check pipeline.
-
-    Returns a unified report with per-module results and a weighted score.
     """
 
     report: Dict[str, Any] = {
         "engine": "Gravity Check",
-        "version": "0.4.0",
+        "version": "0.5.0",
         "modules_run": [],
         "flags": [],
         "modules": {}
     }
 
-    # -------------------------------------------------
-    # 1. SPATIAL MEASUREMENT (required first)
-    # -------------------------------------------------
+    # 1. SPATIAL MEASUREMENT
     spatial = spatial_report(
         object_heights_px=object_heights_px,
         object_bottoms_y=object_bottoms_y,
@@ -59,9 +64,7 @@ def run_gravity_check(
     if spatial.get("depth_ordering", {}).get("consistent") is False:
         report["flags"].append("depth_ordering_conflict")
 
-    # -------------------------------------------------
     # 2. SHADOW DIRECTION
-    # -------------------------------------------------
     light_angle = None
     if shadow_vectors:
         shadow = analyze_shadow_consistency(
@@ -74,19 +77,14 @@ def run_gravity_check(
         if not shadow.get("consistent", True):
             report["flags"].append("shadow_inconsistency")
 
-        # Use average shadow direction as the light direction estimate
-        # (shadows point away from the light, so we reverse it)
         if shadow.get("average_angle") is not None:
             light_angle = (shadow["average_angle"] + 180) % 360
 
-    # -------------------------------------------------
     # 3. LIGHTING GEOMETRY
-    # -------------------------------------------------
     has_lighting_data = (
         object_bright_side_angles is not None
         or (object_distances_proxy is not None and object_brightness is not None)
     )
-
     if has_lighting_data:
         lighting = analyze_lighting_geometry(
             light_angle=light_angle,
@@ -100,15 +98,33 @@ def run_gravity_check(
         if lighting.get("consistent") is False:
             report["flags"].append("lighting_inconsistency")
 
-    # -------------------------------------------------
-    # WEIGHTED EVIDENCE SCORING
-    # -------------------------------------------------
+    # 4. REFLECTIONS
+    has_reflection_data = (
+        expected_reflections > 0
+        or observed_reflections > 0
+        or reflection_centers is not None
+        or reflection_heights_px is not None
+    )
+    if has_reflection_data:
+        reflections = analyze_reflections(
+            expected_reflections=expected_reflections,
+            observed_reflections=observed_reflections,
+            object_centers=reflection_object_centers,
+            reflection_centers=reflection_centers,
+            mirror_line_y=mirror_line_y,
+            object_heights_px=object_heights_px if reflection_heights_px else None,
+            reflection_heights_px=reflection_heights_px,
+        )
+        report["modules"]["reflections"] = reflections
+        report["modules_run"].append("reflections")
+
+        if reflections.get("consistent") is False:
+            report["flags"].append("reflection_inconsistency")
+
+    # WEIGHTED SCORING
     scoring = build_score(report)
     report["scoring"] = scoring
 
-    # -------------------------------------------------
-    # Final summary
-    # -------------------------------------------------
     score = scoring["score"]
     interpretation = scoring["interpretation"]
 
