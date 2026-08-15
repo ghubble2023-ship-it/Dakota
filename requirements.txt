@@ -1,5 +1,5 @@
 # Dakota / Gravity Check
-# Currently minimal — will expand as modules are added
+# Core dependencies for geometric modules + OpenCV measurement front-end
 
-# No external dependencies required for the first shadow module
-# Python standard library only (math, typing) 
+numpy>=1.24
+opencv-python-headless>=4.8
