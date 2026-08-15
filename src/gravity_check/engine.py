@@ -4,7 +4,7 @@ Gravity Check Engine
 Orchestrates all geometric modules and produces a unified
 weighted-evidence report.
 
-Core modules (v0.7.0):
+Core modules (v0.7.1):
 1. Spatial Measurement
 2. Shadow Direction
 3. Lighting Geometry
@@ -72,7 +72,7 @@ def run_gravity_check(
 
     report: Dict[str, Any] = {
         "engine": "Gravity Check",
-        "version": "0.7.0",
+        "version": "0.7.1",
         "modules_run": [],
         "flags": [],
         "modules": {}
@@ -94,7 +94,10 @@ def run_gravity_check(
     # 2. Shadow
     light_angle = None
     if shadow_vectors:
-        shadow = analyze_shadow_consistency(shadow_vectors, shadow_lengths)
+        shadow = analyze_shadow_consistency(
+            shadow_vectors,
+            shadow_lengths=shadow_lengths
+        )
         report["modules"]["shadow_direction"] = shadow
         report["modules_run"].append("shadow_direction")
         if not shadow.get("consistent", True):
