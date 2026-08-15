@@ -7,36 +7,25 @@ Physics-based visual inspection system for detecting AI-generated and manipulate
 Every finding must be explainable through real optical or geometric behavior.  
 No black-box pattern matching. No unexplained confidence scores.
 
-## Repository Structure
+## What is included
 
-```
-Dakota/
-├── docs/
-│   ├── gravity-check-checklist.md
-│   ├── samples/
-│   │   ├── real/
-│   │   └── ai_generated/
-│   └── runs/                        ← automated evaluation outputs
-├── src/
-│   └── gravity_check/
-│       ├── measurement_frontend.py  ← OpenCV contour / shadow extraction
-│       ├── engine.py                ← orchestrates all modules
-│       ├── scoring.py               ← weighted evidence scoring
-│       ├── spatial_measurement.py
-│       ├── shadow_direction.py
-│       ├── lighting_geometry.py
-│       ├── reflections.py
-│       ├── glasses_artifacts.py
-│       ├── edge_bleeding.py
-│       └── run_image.py             ← CLI entry point
-├── .github/workflows/
-├── requirements.txt
-└── README.md
-```
+| Module | Role |
+|--------|------|
+| `measurement_frontend.py` | OpenCV extraction: objects, shadows, edges, lighting cues, reflection proxies, glasses heuristics |
+| `engine.py` | Orchestrates all geometric modules |
+| `scoring.py` | Weighted evidence → final score |
+| `spatial_measurement.py` | Depth ordering, scale, vanishing |
+| `shadow_direction.py` | Shadow vector consistency |
+| `lighting_geometry.py` | Bright-side vs light direction |
+| `reflections.py` | Reflection count / geometry |
+| `glasses_artifacts.py` | Frame ghosting, lens reflections |
+| `edge_bleeding.py` | Soft edges / halo artifacts |
+| `run_image.py` | Single-image CLI |
+| `run_batch.py` | Batch evaluation runner |
 
 ## Gravity Check Order
 
-1. **Spatial Measurement** (required first)
+1. Spatial Measurement (required first)
 2. Shadow Analysis
 3. Lighting Geometry
 4. Reflections
@@ -46,33 +35,37 @@ Dakota/
 
 ## Current Status (2026-08-14)
 
-- [x] Core principle locked
-- [x] Full module set present (spatial, shadow, lighting, reflections, glasses, edge)
-- [x] Measurement front-end (OpenCV) implemented
-- [x] Engine + scoring pipeline wired and runnable
-- [x] Live automated run completed (OpenCV 5.0.0)
-- [ ] Clean real vs fake separation (not yet achieved on current samples)
-- [ ] Larger labeled evaluation set
+- [x] Full module set present and wired
+- [x] Measurement front-end extracts lighting, reflections, glasses signals
+- [x] Engine + scoring pipeline runnable
+- [x] Batch runner (`run_batch.py`)
+- [x] Live automated runs with all modules active
+- [ ] Clean real vs fake separation (not yet on current samples)
+- [ ] Larger labeled evaluation set + better object filters
 
-### Latest automated run (2026-08-14)
+### Latest full run (all modules live)
 
-| Label | Avg Score | Range |
-|-------|-----------|-------|
-| real  | 0.563     | 0.391 – 0.714 |
-| fake  | 0.655     | 0.471 – 0.759 |
+| Label | Avg Score |
+|-------|-----------|
+| real  | 0.734 |
+| fake  | 0.923 |
 
-Dominant flags on both classes: `depth_ordering_conflict`, `shadow_inconsistency`.  
-No reliable separation yet. Full results in `docs/runs/gravity_check_run_2026-08-14.json`.
+No reliable separation yet. See `docs/runs/` for JSON outputs.
 
 ## How to run
 
 ```bash
 pip install -r requirements.txt
+
+# Single image
 python -m src.gravity_check.run_image path/to/image.jpg
+
+# Batch
+python -m src.gravity_check.run_batch path/to/real_dir path/to/fake_dir --limit 20 --out docs/runs/batch.json
 ```
 
 ## Next Priority
 
-1. Improve contour / object filtering to reduce false depth conflicts on face crops
-2. Add more full-body + strong-shadow samples
-3. Expand evaluation set and re-measure
+1. Tighten object filters (reduce false depth conflicts / empty extractions)
+2. More full-body + strong-shadow samples
+3. Larger evaluation set and re-measure separation

@@ -28,6 +28,10 @@ from .measurement_frontend import (
     MeasurementBundle,
     ExtractedObject,
     ExtractedShadow,
+    ExtractedEdges,
+    ExtractedLighting,
+    ExtractedReflections,
+    ExtractedGlasses,
 )
 from .scoring import Evidence, score_from_evidence, build_score
 
@@ -56,6 +60,10 @@ __all__ = [
     "MeasurementBundle",
     "ExtractedObject",
     "ExtractedShadow",
+    "ExtractedEdges",
+    "ExtractedLighting",
+    "ExtractedReflections",
+    "ExtractedGlasses",
     "Evidence",
     "score_from_evidence",
     "build_score",
