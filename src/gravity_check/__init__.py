@@ -22,6 +22,13 @@ from .measurement import (
     measure_object_from_bbox,
     feed_to_engine,
 )
+from .measurement_frontend import (
+    extract_measurements,
+    extract_from_path,
+    MeasurementBundle,
+    ExtractedObject,
+    ExtractedShadow,
+)
 from .scoring import Evidence, score_from_evidence, build_score
 
 __all__ = [
@@ -44,6 +51,11 @@ __all__ = [
     "measure_shadow_from_points",
     "measure_object_from_bbox",
     "feed_to_engine",
+    "extract_measurements",
+    "extract_from_path",
+    "MeasurementBundle",
+    "ExtractedObject",
+    "ExtractedShadow",
     "Evidence",
     "score_from_evidence",
     "build_score",
