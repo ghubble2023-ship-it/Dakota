@@ -1,0 +1,22 @@
+{
+  "date": "2026-08-14",
+  "opencv_version": "5.0.0",
+  "pipeline": "measurement_frontend -> engine -> scoring",
+  "note": "Live automated run after OpenCV reinstall. No clean real/fake separation yet. Dominant flags: depth_ordering_conflict, shadow_inconsistency.",
+  "results": [
+    {"file": "real_01.jpg", "label": "real", "score": 0.454, "flags": ["depth_ordering_conflict", "shadow_inconsistency"], "object_count": 6, "shadow_count": 3},
+    {"file": "real_02.jpg", "label": "real", "score": 0.693, "flags": ["depth_ordering_conflict"], "object_count": 6, "shadow_count": 1},
+    {"file": "real_03.jpg", "label": "real", "score": 0.714, "flags": ["shadow_inconsistency"], "object_count": 2, "shadow_count": 2},
+    {"file": "real_04.jpg", "label": "real", "score": 0.391, "flags": ["depth_ordering_conflict", "shadow_inconsistency"], "object_count": 6, "shadow_count": 3},
+    {"file": "fake_01.jpg", "label": "fake", "score": 0.759, "flags": ["shadow_inconsistency"], "object_count": 6, "shadow_count": 3},
+    {"file": "fake_02.jpg", "label": "fake", "score": 0.696, "flags": ["depth_ordering_conflict"], "object_count": 6, "shadow_count": 1},
+    {"file": "fake_03.jpg", "label": "fake", "score": 0.471, "flags": ["depth_ordering_conflict", "shadow_inconsistency"], "object_count": 6, "shadow_count": 4},
+    {"file": "fake_04.jpg", "label": "fake", "score": 0.695, "flags": ["depth_ordering_conflict"], "object_count": 6, "shadow_count": 1}
+  ],
+  "summary_stats": {
+    "real_avg_score": 0.563,
+    "fake_avg_score": 0.655,
+    "real_range": [0.391, 0.714],
+    "fake_range": [0.471, 0.759]
+  }
+}
