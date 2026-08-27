@@ -1,0 +1,29 @@
+# Signal weights — starting values, NOT final.
+# Sum of weights should equal 1.0.
+
+signal_weights:
+  sensor_noise_prnu: 0.30
+  lighting_shadow: 0.25
+  catchlight_eye_geometry: 0.20
+  general_geometry: 0.25
+
+thresholds:
+  no_discrepancies: 15
+  possible_manipulation: 40
+  likely_manipulation: 70
+
+min_confidence: 40
+
+overrides:
+  smoking_gun:
+    required_status: strong_discrepancy
+    min_signal_confidence: 0.70
+    verdict_floor: likely_manipulation
+  multi_signal_corroboration:
+    min_signals: 2
+    required_status: moderate_discrepancy
+    bump_tier: true
+
+prnu_degradation_handling:
+  missing_prnu_lowers_confidence: true
+  missing_prnu_does_not_raise_evidence: true
