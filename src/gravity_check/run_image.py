@@ -21,15 +21,13 @@ def analyze_image(image_path: str, use_head: bool = True) -> dict:
     bundle = extract_from_path(image_path)
     kwargs = bundle.to_engine_kwargs()
 
-    if not kwargs.get("object_heights_px"):
-        return {
-            "error": "No objects extracted",
-            "notes": bundle.notes,
-            "score": None,
-            "adjusted_score": None,
-        }
-
+    # Mandatory order: still run phases 1→2→3 when extraction is empty.
+    # Missing objects is incomplete foundation, not a skipped analysis.
     report = run_gravity_check(**kwargs)
+    if not kwargs.get("object_heights_px"):
+        report.setdefault("flags", [])
+        if "extraction_empty" not in report["flags"]:
+            report["flags"].append("extraction_empty")
     vec = bundle_and_report_to_vector(report=report, engine_kwargs=kwargs)
 
     adjusted = report.get("score")
