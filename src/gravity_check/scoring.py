@@ -111,6 +111,8 @@ def build_score(report: Dict[str, Any]) -> Dict[str, Any]:
     for key, severity in [
         ("shadow_direction", 0.85),
         ("lighting_geometry", 0.70),
+        ("catchlights", 0.85),
+        ("phase3_secondary", 0.80),
         ("reflections", 0.65),
         ("glasses_artifacts", 0.80),
         ("edge_bleeding", 0.70),
