@@ -12,6 +12,8 @@ from .lighting_geometry import analyze_lighting_geometry
 from .reflections import analyze_reflections
 from .glasses_artifacts import analyze_glasses_artifacts
 from .edge_bleeding import analyze_edge_bleeding
+from .catchlights import analyze_catchlights
+from .phase3_secondary import analyze_phase3_secondary
 from .engine import run_gravity_check
 from .measurement import (
     ImageMeasurements,
@@ -47,6 +49,8 @@ __all__ = [
     "analyze_reflections",
     "analyze_glasses_artifacts",
     "analyze_edge_bleeding",
+    "analyze_catchlights",
+    "analyze_phase3_secondary",
     "run_gravity_check",
     "ImageMeasurements",
     "ObjectMeasurement",
